@@ -5,6 +5,8 @@ import docx
 import os
 from pptx import Presentation
 import PyPDF2
+import time
+from fastapi import Request, Header, HTTPException
 import io
 import json
 
@@ -20,6 +22,38 @@ app.add_middleware(
 
 # --- CONFIGURACIÓN DE LA API ---
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+usuarios_activos = {}
+
+@app.middleware("http")
+async def trackear_usuarios(request: Request, call_next):
+    # En servidores como Render, la IP real viene en este header especial
+    ip = request.headers.get("X-Forwarded-For", request.client.host)
+    if ip:
+        # Guardamos la IP y el momento exacto (en segundos)
+        usuarios_activos[ip] = time.time()
+    
+    response = await call_next(request)
+    return response
+
+@app.get("/api/admin/metricas")
+def ver_metricas(clave_secreta: str = Header(None)):
+    # ¡Cámbiale esta contraseña por la que tú quieras!
+    if clave_secreta != "david-admin-777":
+        raise HTTPException(status_code=401, detail="Acceso denegado. Intruso detectado.")
+
+    tiempo_actual = time.time()
+    # Consideramos "activos" a los que hicieron algo en los últimos 5 minutos (300 segundos)
+    activos = {ip: t for ip, t in usuarios_activos.items() if tiempo_actual - t < 300}
+
+    # Limpiamos la memoria para que no colapse con IPs viejas
+    usuarios_activos.clear()
+    usuarios_activos.update(activos)
+
+    return {
+        "total_activos": len(activos),
+        "detalles": [{"ip": ip, "hace_segundos": int(tiempo_actual - t)} for ip, t in activos.items()]
+    }
 
 @app.post("/subir-archivo/")
 async def procesar_archivo(
