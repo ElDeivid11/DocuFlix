@@ -39,7 +39,7 @@ async def trackear_usuarios(request: Request, call_next):
 @app.get("/api/admin/metricas")
 def ver_metricas(clave_secreta: str = Header(None)):
     # ¡Cámbiale esta contraseña por la que tú quieras!
-    if clave_secreta != "david-admin-777":
+    if clave_secreta != "admin1234":
         raise HTTPException(status_code=401, detail="Acceso denegado. Intruso detectado.")
 
     tiempo_actual = time.time()
